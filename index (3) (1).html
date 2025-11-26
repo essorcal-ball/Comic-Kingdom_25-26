@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bob the Stickman Games</title>
+<style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e0e0e0; margin: 0; padding: 0; color: #333;}
+    header { background-color: #556B2F; color: white; padding: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);}
+    nav { background-color: #8B4513; display: flex; justify-content: center; padding: 10px; gap: 10px; flex-wrap: wrap;}
+    nav button { background-color: orange; border: none; color: white; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s;}
+    nav button:hover { background-color: #ff9900; }
+    main { padding: 20px; max-width: 1000px; margin: auto; }
+    section { display: none; }
+    section.active { display: block; }
+    h2 { color: #556B2F; margin-bottom: 10px; }
+    .card { background-color: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);}
+    .card img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 5px; cursor: pointer;}
+    .card h4 { margin: 10px 0 5px; }
+    input, textarea { width: 100%; padding: 8px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc;}
+    button.submit { background-color: #556B2F; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+    button.submit:hover { background-color: #6B8E23; }
+    .member-only { color: red; font-weight: bold; margin-bottom: 10px; }
+    .rating { display: flex; gap: 5px; margin-top: 5px;}
+    .star { font-size: 20px; color: gray; cursor: pointer; }
+    .star.selected { color: gold; }
+    .user-info { background-color: #f2f2f2; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Bob the Stickman Games</h1>
+</header>
+
+<nav>
+    <button onclick="showSection('home')">Home</button>
+    <button onclick="showSection('addGame')">Add Game</button>
+    <button onclick="showSection('login')">Create/Login</button>
+    <button onclick="adminLogin()">Admin</button>
+</nav>
+
+<main>
+    <!-- Home -->
+    <section id="home" class="active">
+        <h2>Approved Games</h2>
+        <div id="gamesList"></div>
+    </section>
+
+    <!-- Add Game -->
+    <section id="addGame">
+        <h2>Add a Game</h2>
+        <div id="notMemberNotice" class="member-only hidden">You need to be logged in as a member to post a game.</div>
+        <div id="gameFormDiv">
+            <input type="text" id="gameName" placeholder="Game Name">
+            <input type="text" id="gameLink" placeholder="Game Link (URL or embed)">
+            <input type="file" id="gameThumbnail" accept="image/*">
+            <textarea id="gameMessage" placeholder="Message to admin"></textarea>
+            <button class="submit" onclick="submitGame()">Submit Game for Approval</button>
+        </div>
+    </section>
+
+    <!-- Login/Register -->
+    <section id="login">
+        <h2>Create Account / Login</h2>
+        <div id="loginForm">
+            <input type="text" id="username" placeholder="Username">
+            <input type="email" id="email" placeholder="Email (required for new accounts)">
+            <input type="text" id="name" placeholder="Full Name (new accounts)">
+            <textarea id="about" placeholder="About you (new accounts)"></textarea>
+            <button class="submit" onclick="handleLoginRegister()">Create/Login</button>
+        </div>
+        <div id="userInfo" class="hidden user-info"></div>
+    </section>
+
+    <!-- Admin Panel -->
+    <section id="admin">
+        <h2>Admin Panel</h2>
+        <h3>Pending Games</h3>
+        <div id="pendingGamesList"></div>
+        <h3>Members</h3>
+        <div id="membersList"></div>
+    </section>
+</main>
+
+<script>
+let currentUser = null;
+
+function showSection(id){
+    document.querySelectorAll('main section').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if(id==='addGame') checkMembership();
+    if(id==='home') renderGames();
+    if(id==='admin') renderAdmin();
+    if(id==='login') showUserInfo();
+}
+
+// Admin
+function adminLogin(){
+    let pass = prompt("Enter admin passcode:");
+    if(pass==="stego") showSection('admin');
+    else alert("Wrong passcode!");
+}
+
+// Login/Register
+function handleLoginRegister(){
+    let username = document.getElementById('username').value.trim();
+    if(!username){ alert("Username required!"); return;}
+    let members = JSON.parse(localStorage.getItem('members')||'[]');
+    let existing = members.find(m=>m.username===username);
+    if(existing){
+        currentUser = existing.username;
+        alert("Logged in!");
+        showUserInfo();
+    } else {
+        let email = document.getElementById('email').value.trim();
+        let name = document.getElementById('name').value.trim();
+        let about = document.getElementById('about').value.trim();
+        if(!email || !name){ alert("Name and Email required!"); return;}
+        members.push({username,name,email,about,plays:0,ratings:{}});
+        localStorage.setItem('members', JSON.stringify(members));
+        currentUser = username;
+        alert("Account created and logged in!");
+        showUserInfo();
+    }
+    checkMembership();
+}
+
+function showUserInfo(){
+    if(!currentUser) return;
+    let members = JSON.parse(localStorage.getItem('members')||'[]');
+    let user = members.find(m=>m.username===currentUser);
+    let info = `<strong>Logged in as ${user.username}</strong><br>Name: ${user.name}<br>Email: ${user.email}<br>About: ${user.about}`;
+    document.getElementById('userInfo').innerHTML = info;
+    document.getElementById('userInfo').classList.remove('hidden');
+}
+
+// Check membership for game posting
+function checkMembership(){
+    if(!currentUser){
+        document.getElementById('notMemberNotice').classList.remove('hidden');
+        document.getElementById('gameFormDiv').style.display='none';
+    } else {
+        document.getElementById('notMemberNotice').classList.add('hidden');
+        document.getElementById('gameFormDiv').style.display='block';
+    }
+}
+
+// Game submission
+function submitGame(){
+    if(!currentUser){ alert("You must be logged in to submit."); return;}
+    let name = document.getElementById('gameName').value.trim();
+    let link = document.getElementById('gameLink').value.trim();
+    let message = document.getElementById('gameMessage').value.trim();
+    let fileInput = document.getElementById('gameThumbnail');
+    if(!name||!link||!fileInput.files.length){ alert("Game name, link, and thumbnail are required!"); return;}
+
+    let reader = new FileReader();
+    reader.onload = function(e){
+        let thumbnail = e.target.result;
+        let pending = JSON.parse(localStorage.getItem('pendingGames')||'[]');
+        pending.push({name,link,message,submittedBy:currentUser,thumbnail});
+        localStorage.setItem('pendingGames', JSON.stringify(pending));
+        alert("Game submitted for approval!");
+        document.getElementById('gameName').value='';
+        document.getElementById('gameLink').value='';
+        document.getElementById('gameMessage').value='';
+        fileInput.value='';
+    };
+    reader.readAsDataURL(fileInput.files[0]);
+}
+
+// Render Approved Games
+function renderGames(){
+    let games = JSON.parse(localStorage.getItem('approvedGames')||'[]');
+    let container = document.getElementById('gamesList');
+    container.innerHTML='';
+    games.forEach((g,i)=>{
+        let div = document.createElement('div');
+        div.className='card';
+        div.innerHTML=`<h4>${g.name}</h4><img src="${g.thumbnail}" onclick="window.open('${g.link}','_blank')">`;
+        if(currentUser){
+            let stars = document.createElement('div');
+            stars.className='rating';
+            for(let s=1;s<=5;s++){
+                let star = document.createElement('span');
+                star.className='star';
+                star.innerHTML='★';
+                star.onclick=()=>rateGame(i,s);
+                if(g.ratings && g.ratings[currentUser]>=s) star.classList.add('selected');
+                stars.appendChild(star);
+            }
+            div.appendChild(stars);
+        }
+        container.appendChild(div);
+    });
+}
+
+// Rating
+function rateGame(index,rating){
+    let games = JSON.parse(localStorage.getItem('approvedGames')||'[]');
+    if(!currentUser) return;
+    if(!games[index].ratings) games[index].ratings={};
+    games[index].ratings[currentUser]=rating;
+    localStorage.setItem('approvedGames', JSON.stringify(games));
+    renderGames();
+}
+
+// Admin
+function renderAdmin(){
+    let pending = JSON.parse(localStorage.getItem('pendingGames')||'[]');
+    let pendingDiv = document.getElementById('pendingGamesList');
+    pendingDiv.innerHTML='';
+    pending.forEach((g,i)=>{
+        let div = document.createElement('div');
+        div.className='card';
+        div.innerHTML=`<h4>${g.name}</h4><p>${g.message}</p>
+        <img src="${g.thumbnail}" style="cursor:pointer;" onclick="window.open('${g.link}','_blank')">
+        <button class="submit" onclick="approveGame(${i})">Approve</button>
+        <button class="submit" onclick="rejectGame(${i})">Reject</button>`;
+        pendingDiv.appendChild(div);
+    });
+
+    let members = JSON.parse(localStorage.getItem('members')||'[]');
+    let membersDiv = document.getElementById('membersList');
+    membersDiv.innerHTML='';
+    members.forEach((m,i)=>{
+        let div = document.createElement('div');
+        div.className='card';
+        div.innerHTML=`<h4>${m.username}</h4>Name: ${m.name}<br>Email: ${m.email}<br>About: ${m.about}<br>Plays: ${m.plays}<br>
+        <button class="submit" onclick="kickMember(${i})">Kick Member</button>`;
+        membersDiv.appendChild(div);
+    });
+}
+
+function approveGame(i){
+    let pending = JSON.parse(localStorage.getItem('pendingGames')||'[]');
+    let approved = JSON.parse(localStorage.getItem('approvedGames')||'[]');
+    approved.push(pending[i]);
+    pending.splice(i,1);
+    localStorage.setItem('pendingGames', JSON.stringify(pending));
+    localStorage.setItem('approvedGames', JSON.stringify(approved));
+    renderAdmin();
+}
+
+function rejectGame(i){
+    let pending = JSON.parse(localStorage.getItem('pendingGames')||'[]');
+    pending.splice(i,1);
+    localStorage.setItem('pendingGames', JSON.stringify(pending));
+    renderAdmin();
+}
+
+function kickMember(i){
+    let members = JSON.parse(localStorage.getItem('members')||'[]');
+    let username = members[i].username;
+    members.splice(i,1);
+    localStorage.setItem('members', JSON.stringify(members));
+
+    let approved = JSON.parse(localStorage.getItem('approvedGames')||'[]');
+    approved.forEach(g=>{
+        if(g.ratings && g.ratings[username]) delete g.ratings[username];
+    });
+    localStorage.setItem('approvedGames', JSON.stringify(approved));
+
+    let pending = JSON.parse(localStorage.getItem('pendingGames')||'[]');
+    pending = pending.filter(g=>g.submittedBy!==username);
+    localStorage.setItem('pendingGames', JSON.stringify(pending));
+
+    renderAdmin();
+}
+</script>
+
+</body>
+</html>
