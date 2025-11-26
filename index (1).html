@@ -45,6 +45,9 @@ input,textarea{width:100%;padding:8px;border-radius:6px;border:1px solid #e6e6e6
 textarea{min-height:80px;resize:vertical}
 .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 footer{margin-top:18px;text-align:center;color:var(--gray);font-size:13px;padding-bottom:40px}
+.user-list{list-style:none;padding:0;margin:0}
+.user-list li{padding:8px;border-bottom:1px solid #ddd;cursor:pointer}
+.user-info{margin-top:12px}
 </style>
 </head>
 <body>
@@ -129,10 +132,11 @@ footer{margin-top:18px;text-align:center;color:var(--gray);font-size:13px;paddin
       <h2>Admin Dashboard</h2>
       <div class="controls">
         <button class="btn" id="logoutBtn">Logout</button>
-        <button class="btn secondary" id="exportBtn">Export Data</button>
-        <button class="btn secondary" id="importBtn">Import Data</button>
       </div>
     </div>
+    <h3>Users</h3>
+    <ul class="user-list" id="userList"></ul>
+    <div class="user-info" id="userInfo"></div>
     <h3>Pending Submissions</h3>
     <div id="pendingList" class="gallery"></div>
     <div id="noPending" class="small">No pending submissions.</div>
@@ -144,8 +148,6 @@ footer{margin-top:18px;text-align:center;color:var(--gray);font-size:13px;paddin
 <footer>
 Colors: orange · army green · gray · brown — Site runs entirely in your browser (localStorage).
 </footer>
-</div>
-
 <script>
 (function(){
 const STORAGE_PENDING='bts_pending';
@@ -154,13 +156,11 @@ const STORAGE_USERS='bts_users';
 const ADMIN_PASS='stego';
 const navButtons=document.querySelectorAll('a.navbtn');
 const screens=document.querySelectorAll('.screen');
-
 function qs(id){return document.getElementById(id);}
 function uid(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);}
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))||fallback}catch(e){return fallback}}
 function writeJSON(key,val){localStorage.setItem(key,JSON.stringify(val))}
 function safeOpen(url,name='_blank'){window.open(url,name,'noopener');}
-
 let pending=readJSON(STORAGE_PENDING,[]);
 let approved=readJSON(STORAGE_APPROVED,[]);
 let users=readJSON(STORAGE_USERS,[]);
@@ -169,7 +169,7 @@ let currentUser=null;
 function showScreen(id){
   screens.forEach(s=>s.classList.toggle('active',s.id===id));
   if(id==='home') renderApprovedList();
-  if(id==='adminDash'){renderPending();renderApprovedAdmin();}
+  if(id==='adminDash'){renderPending();renderApprovedAdmin();renderUserList();}
   if(id==='account') renderAccount();
 }
 
@@ -184,9 +184,9 @@ navButtons.forEach(btn=>btn.addEventListener('click',e=>{
   window.scrollTo({top:0,behavior:'smooth'});
 }));
 
+// =================== APPROVED LIST & PLAY ===================
 const approvedListEl=qs('approvedList');
 const approvedCount=qs('approvedCount');
-
 function renderApprovedList(){
   approvedListEl.innerHTML='';
   approvedCount.textContent=`Total: ${approved.length}`;
@@ -219,6 +219,7 @@ function renderApprovedList(){
           <div class="small muted">${new Date(game.createdAt).toLocaleString()}</div>
         </div>
         ${ratingHTML}
+        <button class="btn secondary" data-play="${game.id}" style="margin-top:6px">Play</button>
       </div>`;
     approvedListEl.appendChild(el);
   });
@@ -230,14 +231,37 @@ function renderApprovedList(){
         const game=approved.find(g=>g.id===gameId);
         if(!game.ratings) game.ratings={};
         game.ratings[currentUser.username]=value;
+        // save user rating
+        if(!currentUser.ratings) currentUser.ratings={};
+        currentUser.ratings[gameId]=value;
         writeJSON(STORAGE_APPROVED,approved);
+        writeJSON(STORAGE_USERS,users);
         renderApprovedList();
+      });
+    });
+    document.querySelectorAll('.game button[data-play]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const gameId=btn.dataset.play;
+        const game=approved.find(g=>g.id===gameId);
+        playGame(game);
+        // increment play count
+        if(!currentUser.playedGames) currentUser.playedGames={};
+        currentUser.playedGames[gameId]=(currentUser.playedGames[gameId]||0)+1;
+        writeJSON(STORAGE_USERS,users);
+      });
+    });
+  } else {
+    document.querySelectorAll('.game button[data-play]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const gameId=btn.dataset.play;
+        const game=approved.find(g=>g.id===gameId);
+        playGame(game);
       });
     });
   }
 }
 
-// SUBMISSION
+// =================== SUBMISSION ===================
 const submitForm=qs('submitForm');
 const s_file=qs('s_file');
 submitForm.addEventListener('submit',function(e){
@@ -269,7 +293,7 @@ submitForm.addEventListener('submit',function(e){
 });
 qs('clearSubmit').addEventListener('click',()=>submitForm.reset());
 
-// USER ACCOUNT
+// =================== USER ACCOUNT ===================
 function renderAccount(){
   const area=qs('accountArea');
   area.innerHTML='';
@@ -294,7 +318,7 @@ function renderAccount(){
       const about=qs('newAbout').value.trim();
       if(!username||!email){alert('Username and email required');return;}
       let user=users.find(u=>u.email===email);
-      if(!user){user={username,email,about};users.push(user);writeJSON(STORAGE_USERS,users);}
+      if(!user){user={username,email,about,playedGames:{},ratings:{}}; users.push(user); writeJSON(STORAGE_USERS,users);}
       currentUser=user;
       renderAccount();
       renderApprovedList();
@@ -302,7 +326,7 @@ function renderAccount(){
   }
 }
 
-// ADMIN
+// =================== ADMIN LOGIN ===================
 qs('loginForm').addEventListener('submit',function(e){
   e.preventDefault();
   const pass=qs('adminPass').value;
@@ -318,8 +342,63 @@ qs('loginForm').addEventListener('submit',function(e){
 qs('cancelLogin').addEventListener('click',()=>showScreen('home'));
 qs('logoutBtn').addEventListener('click',()=>{sessionStorage.removeItem('bts_admin_logged');showScreen('home');});
 
-// ADMIN FUNCTIONS
+// =================== ADMIN USERS ===================
+const userListEl=qs('userList');
+const userInfoEl=qs('userInfo');
+
+function renderUserList(){
+  userListEl.innerHTML='';
+  users.forEach((user,i)=>{
+    const li=document.createElement('li');
+    li.textContent=user.username + ' (' + user.email + ')';
+    li.addEventListener('click',()=>showUserInfo(user));
+    userListEl.appendChild(li);
+  });
+}
+
+function showUserInfo(user){
+  let ratingsText='';
+  if(user.ratings){
+    for(const gid in user.ratings){
+      const game=approved.find(g=>g.id===gid);
+      if(game) ratingsText+=`<li>${game.title}: ${user.ratings[gid]} stars</li>`;
+    }
+  }
+  let playsText='';
+  if(user.playedGames){
+    for(const gid in user.playedGames){
+      const game=approved.find(g=>g.id===gid);
+      if(game) playsText+=`<li>${game.title}: ${user.playedGames[gid]} times</li>`;
+    }
+  }
+  userInfoEl.innerHTML=`
+    <h4>${user.username}</h4>
+    <div class="small">${user.email}</div>
+    <div>${user.about||''}</div>
+    <h5>Ratings</h5><ul>${ratingsText||'<li>No ratings yet</li>'}</ul>
+    <h5>Played Games</h5><ul>${playsText||'<li>No plays yet</li>'}</ul>
+    <button class="btn danger" id="kickUser">Kick / Delete User</button>
+  `;
+  qs('kickUser').addEventListener('click',()=>{
+    if(!confirm('Are you sure you want to delete this user? This removes all ratings and play data.')) return;
+    users=users.filter(u=>u.email!==user.email);
+    // Remove ratings from games
+    approved.forEach(g=>{
+      if(g.ratings && g.ratings[user.username]) delete g.ratings[user.username];
+    });
+    writeJSON(STORAGE_USERS,users);
+    writeJSON(STORAGE_APPROVED,approved);
+    userInfoEl.innerHTML='';
+    renderUserList();
+    renderApprovedList();
+    renderApprovedAdmin();
+  });
+}
+
+// =================== ADMIN PENDING / APPROVED ===================
 const pendingList=qs('pendingList');
+const approvedAdminList=qs('approvedAdminList');
+
 function renderPending(){
   pendingList.innerHTML='';
   if(pending.length===0){qs('noPending').style.display='block';return;}
@@ -350,7 +429,6 @@ function renderPending(){
   });
 }
 
-const approvedAdminList=qs('approvedAdminList');
 function renderApprovedAdmin(){
   approvedAdminList.innerHTML='';
   approved.forEach(game=>{
@@ -397,36 +475,7 @@ function playGame(item){
   else alert('No link or file to play.');
 }
 
-// EXPORT / IMPORT
-qs('exportBtn').addEventListener('click',()=>{
-  const data=JSON.stringify({approved,pending,users},null,2);
-  const blob=new Blob([data],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download='bts_data.json'; a.click();
-  URL.revokeObjectURL(url);
-});
-qs('importBtn').addEventListener('click',()=>{
-  const input=document.createElement('input'); input.type='file'; input.accept='application/json';
-  input.onchange=e=>{
-    const file=e.target.files[0]; if(!file) return;
-    const reader=new FileReader();
-    reader.onload=evt=>{
-      try{
-        const data=JSON.parse(evt.target.result);
-        if(Array.isArray(data.approved)) approved=data.approved;
-        if(Array.isArray(data.pending)) pending=data.pending;
-        if(Array.isArray(data.users)) users=data.users;
-        writeJSON(STORAGE_APPROVED,approved);
-        writeJSON(STORAGE_PENDING,pending);
-        writeJSON(STORAGE_USERS,users);
-        renderPending(); renderApprovedAdmin(); renderApprovedList(); alert('Data imported successfully!');
-      }catch(err){alert('Invalid JSON file.');}
-    };
-    reader.readAsText(file);
-  };
-  input.click();
-});
-
+// =================== INIT ===================
 showScreen('home');
 })();
 </script>
