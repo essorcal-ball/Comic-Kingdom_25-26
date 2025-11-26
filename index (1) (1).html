@@ -82,22 +82,7 @@ footer{margin-top:18px;text-align:center;color:var(--gray);font-size:13px;paddin
 <section id="submit" class="screen">
   <div class="card">
     <h2>Submit a Game</h2>
-    <form id="submitForm">
-      <label>Game Title</label>
-      <input type="text" id="s_title" required>
-      <label>Creator Name</label>
-      <input type="text" id="s_creator">
-      <label>Game Link (optional if uploading file)</label>
-      <input type="url" id="s_link">
-      <label>Upload File (optional if using link)</label>
-      <input type="file" id="s_file" accept=".html,.htm,.zip,application/zip">
-      <label>Short Description</label>
-      <textarea id="s_message"></textarea>
-      <div class="controls">
-        <button class="btn" type="submit">Send Submission</button>
-        <button class="btn secondary" type="button" id="clearSubmit">Clear</button>
-      </div>
-    </form>
+    <div id="submitArea"></div>
   </div>
 </section>
 
@@ -171,6 +156,7 @@ function showScreen(id){
   if(id==='home') renderApprovedList();
   if(id==='adminDash'){renderPending();renderApprovedAdmin();renderUserList();}
   if(id==='account') renderAccount();
+  if(id==='submit') renderSubmit();
 }
 
 navButtons.forEach(btn=>btn.addEventListener('click',e=>{
@@ -244,7 +230,6 @@ function renderApprovedList(){
         const gameId=btn.dataset.play;
         const game=approved.find(g=>g.id===gameId);
         playGame(game);
-        // increment play count
         if(!currentUser.playedGames) currentUser.playedGames={};
         currentUser.playedGames[gameId]=(currentUser.playedGames[gameId]||0)+1;
         writeJSON(STORAGE_USERS,users);
@@ -261,37 +246,62 @@ function renderApprovedList(){
   }
 }
 
-// =================== SUBMISSION ===================
-const submitForm=qs('submitForm');
-const s_file=qs('s_file');
-submitForm.addEventListener('submit',function(e){
-  e.preventDefault();
-  const title=qs('s_title').value.trim();
-  if(!title){alert('Enter a title');return;}
-  const creator=qs('s_creator').value.trim();
-  const link=qs('s_link').value.trim()||null;
-  const message=qs('s_message').value.trim()||'';
-  const file=s_file.files && s_file.files[0];
-  if(!link && !file){if(!confirm('No link or file provided. Submit anyway?')) return;}
-  if(file){
-    const reader=new FileReader();
-    reader.onload=function(evt){
-      pending.unshift({id:uid(),title,creator,message,link,fileDataUrl:evt.target.result,filename:file.name,createdAt:Date.now()});
+// =================== SUBMIT ===================
+const submitArea=qs('submitArea');
+function renderSubmit(){
+  submitArea.innerHTML='';
+  if(!currentUser){
+    submitArea.innerHTML='<div class="small">You must be a registered user to post a game.</div>';
+    return;
+  }
+  const form=document.createElement('form');
+  form.id='submitForm';
+  form.innerHTML=`
+    <label>Game Title</label>
+    <input type="text" id="s_title" required>
+    <label>Short Description</label>
+    <textarea id="s_message"></textarea>
+    <label>Game Link (optional if uploading file)</label>
+    <input type="url" id="s_link">
+    <label>Upload File (optional if using link)</label>
+    <input type="file" id="s_file" accept=".html,.htm,.zip,application/zip">
+    <div class="controls">
+      <button class="btn" type="submit">Send Submission</button>
+      <button class="btn secondary" type="button" id="clearSubmit">Clear</button>
+    </div>
+  `;
+  submitArea.appendChild(form);
+  const s_file=qs('s_file');
+
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    const title=qs('s_title').value.trim();
+    if(!title){alert('Enter a title');return;}
+    const link=qs('s_link').value.trim()||null;
+    const message=qs('s_message').value.trim()||'';
+    const file=s_file.files && s_file.files[0];
+    if(!link && !file){if(!confirm('No link or file provided. Submit anyway?')) return;}
+    if(file){
+      const reader=new FileReader();
+      reader.onload=function(evt){
+        pending.unshift({id:uid(),title,currentUser.username,message,link,fileDataUrl:evt.target.result,filename:file.name,createdAt:Date.now()});
+        writeJSON(STORAGE_PENDING,pending);
+        renderSubmit();
+        alert('Submission added to pending queue.');
+        showScreen('home');
+      };
+      reader.readAsDataURL(file);
+    } else {
+      pending.unshift({id:uid(),title,currentUser.username,message,link,fileDataUrl:null,filename:null,createdAt:Date.now()});
       writeJSON(STORAGE_PENDING,pending);
-      submitForm.reset();
+      renderSubmit();
       alert('Submission added to pending queue.');
       showScreen('home');
-    };
-    reader.readAsDataURL(file);
-  } else {
-    pending.unshift({id:uid(),title,creator,message,link,fileDataUrl:null,filename:null,createdAt:Date.now()});
-    writeJSON(STORAGE_PENDING,pending);
-    submitForm.reset();
-    alert('Submission added to pending queue.');
-    showScreen('home');
-  }
-});
-qs('clearSubmit').addEventListener('click',()=>submitForm.reset());
+    }
+  });
+
+  qs('clearSubmit').addEventListener('click',()=>form.reset());
+}
 
 // =================== USER ACCOUNT ===================
 function renderAccount(){
@@ -299,7 +309,7 @@ function renderAccount(){
   area.innerHTML='';
   if(currentUser){
     area.innerHTML=`<div><strong>Logged in as ${currentUser.username}</strong> | <button class="btn secondary" id="logoutUser">Logout</button></div><div class="small">${currentUser.about||''}</div>`;
-    qs('logoutUser').addEventListener('click',()=>{currentUser=null;renderAccount();renderApprovedList();});
+    qs('logoutUser').addEventListener('click',()=>{currentUser=null;renderAccount();renderApprovedList();renderSubmit();});
   } else {
     const form=document.createElement('form');
     form.innerHTML=`
@@ -322,6 +332,7 @@ function renderAccount(){
       currentUser=user;
       renderAccount();
       renderApprovedList();
+      renderSubmit();
     });
   }
 }
@@ -382,10 +393,7 @@ function showUserInfo(user){
   qs('kickUser').addEventListener('click',()=>{
     if(!confirm('Are you sure you want to delete this user? This removes all ratings and play data.')) return;
     users=users.filter(u=>u.email!==user.email);
-    // Remove ratings from games
-    approved.forEach(g=>{
-      if(g.ratings && g.ratings[user.username]) delete g.ratings[user.username];
-    });
+    approved.forEach(g=>{if(g.ratings && g.ratings[user.username]) delete g.ratings[user.username];});
     writeJSON(STORAGE_USERS,users);
     writeJSON(STORAGE_APPROVED,approved);
     userInfoEl.innerHTML='';
