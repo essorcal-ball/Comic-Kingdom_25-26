@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Bob the Stickman Games</title>
+<style>
+  :root{
+    --bg:#f7f8fb; --card:#fff; --accent:#ff7a18; --accent2:#556b2f; --muted:#6b7280;
+    --radius:12px; --maxw:1100px; --shadow: 0 6px 18px rgba(15,23,42,0.06);
+  }
+  *{box-sizing:border-box}
+  body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial; margin:0; background:var(--bg); color:#111}
+  header{background:linear-gradient(90deg,var(--accent2),#8b5a2b); color:white; padding:18px 16px; box-shadow:var(--shadow)}
+  .wrap{max-width:var(--maxw); margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px}
+  header h1{margin:0;font-size:20px}
+  nav{display:flex; gap:8px}
+  .btn{background:var(--accent); border:none; color:white; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600}
+  .btn.ghost{background:transparent; color:white; border:1px solid rgba(255,255,255,0.18)}
+  main{max-width:var(--maxw); margin:26px auto; padding:0 16px}
+  .grid{display:grid; grid-template-columns:1fr 320px; gap:22px}
+  .games-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px}
+  .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column}
+  .thumb{position:relative; height:160px; background:#e6e8eb}
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block}
+  .play-overlay{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.6); padding:8px 12px; border-radius:28px; color:white; display:flex; align-items:center; gap:8px; cursor:pointer}
+  .card-body{padding:12px 14px; display:flex; flex-direction:column; gap:8px}
+  h2{margin:0 0 6px; color:var(--accent2)}
+  label{font-size:13px; color:var(--muted); display:block; margin-bottom:6px}
+  input[type=text], input[type=email], textarea{width:100%; padding:10px; border-radius:8px; border:1px solid #e6e9ef}
+  textarea{min-height:90px; resize:vertical}
+  .small{font-size:13px; color:var(--muted)}
+  .sidebar .card{padding:12px}
+  .avatar{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+  .pro-badge{background:linear-gradient(90deg,#ffd89b,#ff7a18); padding:6px 8px; border-radius:8px; font-weight:700; color:#3b2b00}
+  .muted-box{background:linear-gradient(180deg,#fff,#fbfbfb); border:1px solid rgba(0,0,0,0.04); padding:10px; border-radius:10px}
+  .payment-methods{display:flex; gap:8px}
+  .pm{flex:1; padding:10px; border-radius:10px; border:1px solid #eee; text-align:center; cursor:pointer}
+  footer{max-width:var(--maxw); margin:26px auto; padding:20px; text-align:center; color:var(--muted)}
+  .actions{display:flex; gap:8px; align-items:center}
+  @media (max-width:980px){ .grid{grid-template-columns:1fr} .sidebar{order:2} }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Bob the Stickman Games</h1>
+    <nav>
+      <button class="btn" onclick="showSection('home')">Home</button>
+      <button class="btn" onclick="showSection('submit')">Submit Game</button>
+      <button class="btn" onclick="showSection('account')">Create / Log in</button>
+      <button class="btn" onclick="adminPrompt()">Admin</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <div>
+      <!-- HOME -->
+      <section id="homeSection">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px">
+          <div>
+            <h2>Featured Games</h2>
+            <div class="small" id="welcomeText">Explore community games — log in to post and rate.</div>
+          </div>
+          <div class="small" id="accountQuick"></div>
+        </div>
+
+        <div class="games-grid" id="approvedGrid"></div>
+      </section>
+
+      <!-- SUBMIT -->
+      <section id="submitSection" style="display:none; margin-top:16px">
+        <h2>Submit a Game</h2>
+        <div class="card" style="padding:12px">
+          <div id="submitNotice" class="muted-box small" style="margin-bottom:10px">You must be logged in to submit a game.</div>
+
+          <div id="submitForm" style="display:none">
+            <label>Game Title</label>
+            <input id="s_title" type="text" placeholder="Name of your game">
+            <label>Game Link (URL)</label>
+            <input id="s_link" type="text" placeholder="https://example.com/play">
+            <label>Thumbnail Image (required)</label>
+            <input id="s_thumb" type="file" accept="image/*">
+            <label>Message to admin (optional)</label>
+            <textarea id="s_msg"></textarea>
+            <div style="display:flex; gap:8px; margin-top:10px">
+              <button class="btn" onclick="submitGame()">Submit for approval</button>
+              <button class="btn" onclick="clearSubmitForm()">Clear</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ACCOUNT -->
+      <section id="accountSection" style="display:none; margin-top:16px">
+        <h2>Create Account / Log in</h2>
+        <div class="card" style="padding:12px">
+          <div id="accountForm">
+            <label>Username</label>
+            <input id="a_username" type="text" placeholder="username (required)">
+
+            <label>Email (required to create)</label>
+            <input id="a_email" type="email" placeholder="you@example.com">
+
+            <label>Full name (for profile)</label>
+            <input id="a_name" type="text" placeholder="Your full name">
+
+            <label>About (optional)</label>
+            <textarea id="a_about" placeholder="About you"></textarea>
+
+            <div style="display:flex; gap:8px; margin-top:10px">
+              <button class="btn" onclick="handleAccount()">Create / Log in</button>
+              <button class="btn" onclick="logout()">Log out</button>
+            </div>
+          </div>
+
+          <div id="accountInfo" style="display:none; margin-top:12px">
+            <div style="display:flex; gap:12px; align-items:center">
+              <div class="avatar" id="avatarText">AB</div>
+              <div>
+                <div id="accName" style="font-weight:700"></div>
+                <div class="small" id="accEmail"></div>
+              </div>
+              <div style="margin-left:auto">
+                <div id="proBadge" style="display:none" class="pro-badge">PRO</div>
+              </div>
+            </div>
+            <div style="margin-top:8px" class="small" id="accAbout"></div>
+
+            <div style="margin-top:12px" class="muted-box">
+              <h4 style="margin:0 0 8px">Upgrade to Pro — $1</h4>
+              <ul style="margin:0 0 8px 20px">
+                <li>Secret chat with the admin</li>
+                <li>Up to 5 votes per game</li>
+              </ul>
+              <div style="display:flex; gap:8px">
+                <button class="btn" id="upgradeBtn" onclick="goToPayment()">Upgrade to Pro</button>
+                <button class="btn ghost" onclick="downgradePro()" id="downgradeBtn" style="display:none">Downgrade (test)</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- PAYMENT -->
+      <section id="paymentSection" style="display:none; margin-top:16px">
+        <h2>Mock Payment</h2>
+        <div class="card" style="padding:12px">
+          <p class="small">This demo simulates payment — choose any method to complete the $1 upgrade (no real money processed).</p>
+          <div class="payment-methods" style="margin-top:10px">
+            <div class="pm" onclick="completePayment('paypal')">PayPal</div>
+            <div class="pm" onclick="completePayment('card')">Credit / Debit Card</div>
+            <div class="pm" onclick="completePayment('crypto')">Crypto</div>
+          </div>
+          <div style="margin-top:12px"><button class="btn ghost" onclick="showSection('account')">Cancel</button></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="card" style="padding:12px; margin-bottom:14px">
+        <h3 style="margin:0 0 8px">Profile</h3>
+        <div id="sidebarProfile">
+          <div class="small">Not logged in</div>
+          <div style="margin-top:8px"><button class="btn ghost" onclick="showSection('account')">Create / Log in</button></div>
+        </div>
+      </div>
+
+      <div class="card muted-box" style="margin-bottom:14px">
+        <h4 style="margin:0 0 8px">Secret Chat (Pro)</h4>
+        <div id="secretChatArea" style="min-height:110px; max-height:240px; overflow:auto; padding:6px; background:#fff; border-radius:8px; border:1px solid #f2f2f2"></div>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <input id="chatInput" type="text" placeholder="Message admin..." style="flex:1; padding:8px; border-radius:8px; border:1px solid #e6e9ef">
+          <button class="btn" onclick="sendChat()">Send</button>
+        </div>
+      </div>
+
+      <div class="card muted-box">
+        <h4 style="margin:0 0 8px">Admin</h4>
+        <div class="small">Click admin and enter passcode to open panel</div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<footer>Bob the Stickman Games — demo • LocalStorage-based • No real payments</footer>
+
+<script>
+/* -------------------------
+   LocalStorage helpers
+   ------------------------- */
+function getMembers(){ return JSON.parse(localStorage.getItem('btg_members') || '[]') }
+function setMembers(v){ localStorage.setItem('btg_members', JSON.stringify(v)) }
+function getPending(){ return JSON.parse(localStorage.getItem('btg_pending') || '[]') }
+function setPending(v){ localStorage.setItem('btg_pending', JSON.stringify(v)) }
+function getApproved(){ return JSON.parse(localStorage.getItem('btg_approved') || '[]') }
+function setApproved(v){ localStorage.setItem('btg_approved', JSON.stringify(v)) }
+function getChat(){ return JSON.parse(localStorage.getItem('btg_chat') || '[]') }
+function setChat(v){ localStorage.setItem('btg_chat', JSON.stringify(v)) }
+
+/* -------------------------
+   App state
+   ------------------------- */
+let currentUser = null; // username string
+
+/* -------------------------
+   Initialize (render)
+   ------------------------- */
+function init(){
+  renderApproved();
+  renderSidebar();
+  renderChat();
+  showSection('home'); // default
+}
+
+/* -------------------------
+   UI helpers
+   ------------------------- */
+function showSection(section){
+  // hide all sections
+  ['homeSection','submitSection','accountSection','paymentSection'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.style.display = 'none';
+  });
+  // show requested
+  const map = { 'home':'homeSection', 'submit':'submitSection', 'account':'accountSection', 'payment':'paymentSection' };
+  const id = map[section] || 'homeSection';
+  document.getElementById(id).style.display = 'block';
+  // other updates
+  if(section==='submit') checkSubmitAccess();
+  if(section==='account') renderAccount();
+  renderApproved();
+  renderSidebar();
+}
+
+/* -------------------------
+   Account: create / login / logout
+   ------------------------- */
+function handleAccount(){
+  const username = document.getElementById('a_username').value.trim();
+  if(!username) return alert('Username required');
+  const members = getMembers();
+  const existing = members.find(m=>m.username.toLowerCase() === username.toLowerCase());
+  if(existing){
+    // login
+    currentUser = existing.username;
+    alert('Logged in as ' + currentUser);
+  } else {
+    // create
+    const email = document.getElementById('a_email').value.trim();
+    const name = document.getElementById('a_name').value.trim();
+    const about = document.getElementById('a_about').value.trim();
+    if(!email || !name) return alert('Name and email required for new accounts');
+    const newUser = { username, email, name, about, plays:0, isPro:false, ratings:{} };
+    members.push(newUser); setMembers(members);
+    currentUser = username;
+    alert('Account created and logged in as ' + currentUser);
+  }
+  // clear form to avoid accidental creation
+  document.getElementById('a_username').value=''; document.getElementById('a_email').value=''; document.getElementById('a_name').value=''; document.getElementById('a_about').value='';
+  renderAccount(); renderSidebar(); renderApproved();
+  showSection('home');
+}
+
+function logout(){
+  currentUser = null;
+  renderAccount(); renderSidebar(); renderApproved();
+  alert('Logged out');
+}
+
+function renderAccount(){
+  const members = getMembers();
+  if(!currentUser){
+    document.getElementById('accountForm').style.display = 'block';
+    document.getElementById('accountInfo').style.display = 'none';
+    return;
+  }
+  const me = members.find(m=>m.username === currentUser);
+  if(!me){ currentUser = null; return renderAccount(); }
+  document.getElementById('accountForm').style.display = 'none';
+  document.getElementById('accountInfo').style.display = 'block';
+  document.getElementById('avatarText').innerText = (me.name || me.username).split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase();
+  document.getElementById('accName').innerText = me.name + ' (' + me.username + ')';
+  document.getElementById('accEmail').innerText = me.email;
+  document.getElementById('accAbout').innerText = me.about || '';
+  document.getElementById('proBadge').style.display = me.isPro ? 'inline-block' : 'none';
+  document.getElementById('upgradeBtn').innerText = me.isPro ? 'You are PRO' : 'Upgrade to Pro';
+  document.getElementById('downgradeBtn').style.display = me.isPro ? 'inline-block' : 'none';
+}
+
+/* -------------------------
+   Submit game
+   ------------------------- */
+function checkSubmitAccess(){
+  const form = document.getElementById('submitForm');
+  const notice = document.getElementById('submitNotice');
+  if(!currentUser){ form.style.display='none'; notice.innerText='You must be logged in to submit a game.'; return }
+  form.style.display='block'; notice.innerText = 'Submitting as: ' + currentUser;
+}
+
+function clearSubmitForm(){
+  document.getElementById('s_title').value=''; document.getElementById('s_link').value=''; document.getElementById('s_msg').value=''; document.getElementById('s_thumb').value='';
+}
+
+function submitGame(){
+  if(!currentUser) return alert('Log in to submit');
+  const title = document.getElementById('s_title').value.trim();
+  const link = document.getElementById('s_link').value.trim();
+  const msg = document.getElementById('s_msg').value.trim();
+  const fileInput = document.getElementById('s_thumb');
+  if(!title || !link) return alert('Title and link required');
+  if(!fileInput.files || !fileInput.files[0]) return alert('Thumbnail image required');
+
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const thumbnail = e.target.result; // dataURL
+    const pending = getPending();
+    pending.push({ id: Date.now(), title, link, msg, thumbnail, submittedBy: currentUser });
+    setPending(pending);
+    alert('Game submitted for admin approval');
+    clearSubmitForm();
+    showSection('home');
+  };
+  reader.readAsDataURL(fileInput.files[0]);
+}
+
+/* -------------------------
+   Approve / reject (admin)
+   ------------------------- */
+function adminPrompt(){
+  const pass = prompt('Enter admin passcode:');
+  if(pass !== 'stego') return alert('Wrong passcode');
+  // simple admin UI via prompt/confirm flows
+  const action = prompt('Admin panel: type "pending" to review pending games, "members" to manage members, or "approved" to list approved games');
+  if(!action) return;
+  if(action === 'pending') adminReviewPending();
+  else if(action === 'members') adminManageMembers();
+  else if(action === 'approved') { const approved = getApproved(); if(approved.length===0) alert('No approved games'); else alert('Approved:\\n' + approved.map((g,i)=> (i+1)+'. '+g.title+' (by '+(g.submittedBy||'unknown')+')').join('\\n')); }
+  else alert('Unknown command');
+}
+
+function adminReviewPending(){
+  const pending = getPending();
+  if(pending.length === 0) return alert('No pending games');
+  const list = pending.map((p,i)=> (i+1)+'. '+p.title+' (by '+p.submittedBy+')').join('\\n');
+  const pick = parseInt(prompt('Pending games:\\n'+list+'\\nEnter number to review (or Cancel)')) - 1;
+  if(isNaN(pick) || pick < 0 || pick >= pending.length) return;
+  const item = pending[pick];
+  const view = confirm('Approve "' + item.title + '" by ' + item.submittedBy + '? Press OK to approve, Cancel to reject.');
+  if(view){
+    // approve: move to approved
+    const approved = getApproved();
+    approved.push(Object.assign({}, item, { approvedAt: Date.now() }));
+    setApproved(approved);
+    pending.splice(pick, 1); setPending(pending);
+    alert('Approved');
+    renderApproved();
+  } else {
+    // reject
+    pending.splice(pick,1); setPending(pending);
+    alert('Rejected and removed');
+  }
+}
+
+function adminManageMembers(){
+  const members = getMembers();
+  if(members.length === 0) return alert('No members yet');
+  const list = members.map((m,i)=> (i+1)+'. '+m.username + (m.isPro? ' (PRO)' : '')).join('\\n');
+  const pick = parseInt(prompt('Members:\\n'+list+'\\nEnter number to manage (or Cancel)')) - 1;
+  if(isNaN(pick) || pick < 0 || pick >= members.length) return;
+  const member = members[pick];
+  const action = prompt('Manage ' + member.username + ': type "kick" to remove or "togglepro" to toggle pro status');
+  if(action === 'kick'){
+    if(!confirm('Remove member ' + member.username + ' and all their data?')) return;
+    // remove ratings from approved games, remove pending submissions, remove member
+    let approved = getApproved();
+    approved.forEach(g=>{
+      if(g.ratings && g.ratings[member.username]) delete g.ratings[member.username];
+    });
+    setApproved(approved);
+    let pending = getPending();
+    pending = pending.filter(p=>p.submittedBy !== member.username);
+    setPending(pending);
+    members.splice(pick,1); setMembers(members);
+    alert('Member removed');
+    renderApproved(); renderChat(); renderSidebar();
+  } else if(action === 'togglepro'){
+    member.isPro = !member.isPro; setMembers(members); alert(member.username + ' pro status: ' + member.isPro);
+    renderAccount(); renderSidebar();
+  } else alert('Cancelled or unknown action');
+}
+
+/* -------------------------
+   Render approved games
+   ------------------------- */
+function renderApproved(){
+  const container = document.getElementById('approvedGrid');
+  container.innerHTML = '';
+  const approved = getApproved();
+  if(approved.length === 0){
+    container.innerHTML = '<div class="card" style="padding:18px"><div class="small">No approved games yet. Admin must approve submissions.</div></div>';
+    return;
+  }
+  approved.forEach((g, idx) => {
+    const el = document.createElement('div'); el.className='card';
+    const thumb = document.createElement('div'); thumb.className='thumb';
+    const img = document.createElement('img'); img.src = g.thumbnail || '';
+    thumb.appendChild(img);
+    const overlay = document.createElement('div'); overlay.className='play-overlay'; overlay.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 5v14l11-7z" fill="white"/></svg><div>Play</div>';
+    overlay.onclick = ()=> openAndCountPlay(idx);
+    thumb.appendChild(overlay);
+    el.appendChild(thumb);
+
+    const body = document.createElement('div'); body.className='card-body';
+    const title = document.createElement('h3'); title.innerText = g.title; body.appendChild(title);
+
+    const meta = document.createElement('div'); meta.className='small'; meta.innerText = 'By ' + (g.submittedBy || 'unknown'); body.appendChild(meta);
+
+    // actions row
+    const actions = document.createElement('div'); actions.style.display='flex'; actions.style.alignItems='center'; actions.style.gap='8px';
+    // play button
+    const playBtn = document.createElement('button'); playBtn.className='btn'; playBtn.style.padding='6px 10px'; playBtn.innerText='Play'; playBtn.onclick = ()=> openAndCountPlay(idx);
+    actions.appendChild(playBtn);
+    // rating button and avg
+    const avg = calcAvg(g);
+    const avgEl = document.createElement('div'); avgEl.className='small'; avgEl.style.marginLeft='auto'; avgEl.innerText = avg ? '★ ' + avg.toFixed(1) : 'No ratings';
+    actions.appendChild(avgEl);
+
+    // vote control
+    const voteBtn = document.createElement('button'); voteBtn.className='btn ghost'; voteBtn.style.border='1px solid #ddd'; voteBtn.innerText='Vote';
+    voteBtn.onclick = ()=> openVoteDialog(idx);
+    actions.appendChild(voteBtn);
+
+    body.appendChild(actions);
+
+    el.appendChild(body);
+    container.appendChild(el);
+  });
+}
+
+/* -------------------------
+   Play action increments play count per user
+   ------------------------- */
+function openAndCountPlay(index){
+  const approved = getApproved();
+  const g = approved[index];
+  if(!g) return;
+  // open the link in new tab (if safe) — ensure protocol
+  try { window.open(g.link, '_blank'); } catch(e){ alert('Cannot open link'); }
+  if(currentUser){
+    const members = getMembers();
+    const me = members.find(m=>m.username === currentUser);
+    if(me){ me.plays = (me.plays || 0) + 1; setMembers(members); renderAccount(); renderSidebar(); }
+  }
+}
+
+/* -------------------------
+   Ratings: free = 1 vote, pro = 5 votes (per user tracked as array)
+   ------------------------- */
+function calcAvg(g){
+  if(!g.ratings) return 0;
+  let all = [];
+  Object.values(g.ratings).forEach(val=>{
+    if(Array.isArray(val)) val.forEach(v=>all.push(v));
+    else if(typeof val === 'number') all.push(val);
+  });
+  if(all.length===0) return 0;
+  return all.reduce((a,b)=>a+b,0)/all.length;
+}
+
+function openVoteDialog(index){
+  if(!currentUser) return alert('Log in to vote');
+  const approved = getApproved(); const g = approved[index];
+  const members = getMembers(); const me = members.find(m=>m.username === currentUser);
+  if(!me) return alert('Member not found (please log in again)');
+  const limit = me.isPro ? 5 : 1;
+  const existing = (g.ratings && g.ratings[currentUser]) ? g.ratings[currentUser] : [];
+  const used = Array.isArray(existing) ? existing.length : (typeof existing === 'number'?1:0);
+  if(used >= limit) return alert('You reached your vote limit for this game (' + used + '/' + limit + ')');
+  const val = parseInt(prompt('Enter rating 1-5 (you have ' + (limit - used) + ' votes remaining)'));
+  if(isNaN(val) || val < 1 || val > 5) return alert('Invalid rating');
+  // push rating
+  if(!g.ratings) g.ratings = {};
+  if(!Array.isArray(g.ratings[currentUser])) g.ratings[currentUser] = [];
+  g.ratings[currentUser].push(val);
+  setApproved(approved);
+  alert('Thanks for voting!');
+  renderApproved();
+}
+
+/* -------------------------
+   Payment mock
+   ------------------------- */
+function goToPayment(){ if(!currentUser) return alert('Log in to upgrade'); showSection('payment'); }
+function completePayment(method){
+  // simulate success
+  const members = getMembers(); const me = members.find(m=>m.username === currentUser);
+  if(!me) return alert('Member not found');
+  me.isPro = true; setMembers(members);
+  alert('Payment ' + method + ' simulated — you are now PRO while logged in');
+  showSection('account');
+  renderAccount(); renderSidebar(); renderChat();
+}
+function downgradePro(){
+  const members = getMembers(); const me = members.find(m=>m.username === currentUser);
+  if(!me) return;
+  me.isPro = false; setMembers(members);
+  alert('Pro removed (test)');
+  renderAccount(); renderSidebar(); renderChat();
+}
+
+/* -------------------------
+   Chat (Pro only)
+   ------------------------- */
+function sendChat(){
+  const txt = document.getElementById('chatInput').value.trim();
+  if(!txt) return;
+  if(!currentUser) return alert('Log in and be Pro to use secret chat');
+  const members = getMembers(); const me = members.find(m=>m.username === currentUser);
+  if(!me || !me.isPro) return alert('Secret chat is for Pro users only');
+  const chat = getChat();
+  chat.push({ from: currentUser, msg: txt, time: Date.now() });
+  setChat(chat);
+  document.getElementById('chatInput').value = '';
+  renderChat();
+}
+function renderChat(){
+  const area = document.getElementById('secretChatArea'); area.innerHTML = '';
+  const chat = getChat();
+  if(chat.length === 0){ area.innerHTML = '<div class="small">No messages yet (Pro)</div>'; return; }
+  chat.slice(-200).forEach(c=>{
+    const d = document.createElement('div'); d.className='small'; d.style.marginBottom='8px';
+    const time = new Date(c.time).toLocaleString();
+    d.innerHTML = '<strong>'+c.from+'</strong>: '+escapeHtml(c.msg) + ' <span class="small" style="color:#999">(' + time + ')</span>';
+    area.appendChild(d);
+  });
+}
+
+/* -------------------------
+   Sidebar & member display
+   ------------------------- */
+function renderSidebar(){
+  const area = document.getElementById('sidebarProfile');
+  area.innerHTML = '';
+  if(!currentUser){
+    area.innerHTML = '<div class="small">Not logged in</div><div style="margin-top:8px"><button class="btn ghost" onclick="showSection(\\'account\\')">Create / Log in</button></div>';
+    document.getElementById('accountQuick').innerText = '';
+    return;
+  }
+  const members = getMembers(); const me = members.find(m=>m.username === currentUser);
+  if(!me){ currentUser = null; return renderSidebar(); }
+  const html = `
+    <div style="display:flex; gap:10px; align-items:center">
+      <div class="avatar">${(me.name||me.username).split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase()}</div>
+      <div>
+        <div style="font-weight:700">${me.name}</div>
+        <div class="small">@${me.username}</div>
+      </div>
+      <div style="margin-left:auto">${me.isPro ? '<div class="pro-badge">PRO</div>' : ''}</div>
+    </div>
+    <div style="margin-top:8px" class="small">Plays: ${me.plays||0}</div>
+  `;
+  area.innerHTML = html;
+  document.getElementById('accountQuick').innerText = 'Hello, ' + me.name;
+}
+
+/* -------------------------
+   Utilities
+   ------------------------- */
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+
+/* -------------------------
+   Admin / Management helpers already above
+   ------------------------- */
+
+/* -------------------------
+   Init sample data (only if empty) and start
+   ------------------------- */
+(function seedIfEmpty(){
+  if(!localStorage.getItem('btg_initialized')){
+    // sample approved games (no thumbnails) to show layout
+    setApproved([
+      // these will need thumbnails if you want images; fine to start empty
+    ]);
+    setPending([]);
+    setMembers([]);
+    setChat([]);
+    localStorage.setItem('btg_initialized','1');
+  }
+})();
+init();
+</script>
+</body>
+</html>
