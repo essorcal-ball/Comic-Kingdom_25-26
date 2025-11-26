@@ -1,61 +1,414 @@
 <!DOCTYPE html>
-const pending = getPending(); if(pending.length===0){alert('No pending games'); return}
-let list = pending.map((p,i)=>i+1 + '. ' + p.title + ' (by ' + p.submittedBy +')').join('
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Bob the Stickman Games — Modern</title>
+<style>
+  :root{
+    --bg:#f7f8fb; --card:#ffffff; --accent:#ff7a18; --accent-2:#556b2f; --muted:#6b6b6b; --shadow: 0 6px 18px rgba(15,23,42,0.08);
+    --radius:12px; --maxw:1100px;
+  }
+  *{box-sizing:border-box}
+  body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0;background:var(--bg);color:#111}
+  header{background:linear-gradient(90deg,rgba(85,107,47,0.95),rgba(136,84,41,0.95));color:white;padding:28px 20px;box-shadow:var(--shadow)}
+  header .wrap{max-width:var(--maxw);margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  header h1{margin:0;font-size:20px;letter-spacing:0.6px}
+  nav{display:flex;gap:8px}
+  .btn{background:var(--accent);border:none;color:white;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer}
+  .btn.outline{background:transparent;border:1px solid rgba(0,0,0,0.06);color:var(--muted)}
+  main{max-width:var(--maxw);margin:28px auto;padding:0 20px}
+  .grid{display:grid;grid-template-columns:1fr 320px;gap:24px}
+  .games{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+  .thumb{position:relative; height:150px; background:#ddd; display:block}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .play-overlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.6);padding:10px 14px;border-radius:30px;display:flex;align-items:center;gap:8px;cursor:pointer}
+  .play-overlay svg{width:18px;height:18px;fill:white}
+  .card-body{padding:12px 14px;flex:1;display:flex;flex-direction:column}
+  .card-body h3{margin:0 0 6px;font-size:16px}
+  .meta{color:var(--muted);font-size:13px;margin-bottom:8px}
+  .card-actions{display:flex;gap:8px;align-items:center}
+  .rating{display:flex;gap:6px;align-items:center}
+  .small{font-size:13px;color:var(--muted)}
+
+  /* sidebar */
+  .sidebar .card{padding:14px}
+  .user-box{display:flex;gap:12px;align-items:center}
+  .avatar{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+  .pro-badge{background:linear-gradient(90deg,#ffd89b,#ff7a18);padding:6px 8px;border-radius:8px;font-weight:700;color:#3b2b00}
+  .muted-box{background:linear-gradient(180deg,#fff,#fbfbfb);border:1px solid rgba(0,0,0,0.04);padding:12px;border-radius:10px}
+
+  /* forms */
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+  input[type=text], input[type=email], textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ef}
+  textarea{min-height:80px;resize:vertical}
+  .file-row{display:flex;gap:8px;align-items:center}
+
+  /* payment mock */
+  .payment-methods{display:flex;gap:8px}
+  .pm{flex:1;padding:10px;border-radius:10px;border:1px solid #eee;text-align:center}
+
+  footer{max-width:var(--maxw);margin:28px auto;padding:20px;text-align:center;color:var(--muted)}
+
+  @media (max-width:900px){.grid{grid-template-columns:1fr}.sidebar{order:2}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Bob the Stickman Games</h1>
+    <nav>
+      <button class="btn" onclick="showSection('home')">Home</button>
+      <button class="btn outline" onclick="showSection('submit')">Submit Game</button>
+      <button class="btn outline" onclick="showSection('account')">Create / Log in</button>
+      <button class="btn" onclick="adminLogin()">Admin</button>
+    </nav>
+  </div>
+</header>
+<main>
+  <div class="grid">
+    <div>
+      <!-- HOME / GAMES -->
+      <section id="home" style="display:block">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <h2 style="margin:0">Featured Games</h2>
+          <div class="small" id="welcomeText">Welcome — please log in or create an account</div>
+        </div>
+        <div class="games" id="gamesGrid"></div>
+      </section>
+
+      <!-- SUBMIT -->
+      <section id="submit" style="display:none">
+        <h2>Submit a Game</h2>
+        <div class="card" style="padding:12px">
+          <div id="submitNotice" class="muted-box small" style="margin-bottom:10px">You must be logged in as a member to submit a game.</div>
+          <div id="submitForm" style="display:none">
+            <label>Game Title</label>
+            <input id="s_title" type="text" placeholder="My cool game">
+            <label>Game Link (URL to play)</label>
+            <input id="s_link" type="text" placeholder="https://example.com/play">
+            <label>Thumbnail Image</label>
+            <div class="file-row"><input id="s_file" type="file" accept="image/*"><div class="small">(required)</div></div>
+            <label>Message to Admin</label>
+            <textarea id="s_msg" placeholder="Optional message to admin"></textarea>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn" onclick="submitGame()">Submit for Approval</button>
+              <button class="btn outline" onclick="clearSubmit()">Clear</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ACCOUNT / LOGIN -->
+      <section id="account" style="display:none">
+        <h2>Create Account / Log in</h2>
+        <div class="card" style="padding:12px">
+          <div id="accountArea">
+            <div id="accountForm">
+              <label>Username</label>
+              <input id="a_username" type="text" placeholder="username">
+              <label>Email (required to create)</label>
+              <input id="a_email" type="email" placeholder="you@example.com">
+              <label>Full name (for new accounts)</label>
+              <input id="a_name" type="text" placeholder="Full name">
+              <label>About (optional)</label>
+              <textarea id="a_about"></textarea>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <button class="btn" onclick="handleAuth()">Create / Log in</button>
+                <button class="btn outline" onclick="logout()">Log out</button>
+              </div>
+            </div>
+            <div id="accountInfo" style="display:none;margin-top:12px">
+              <div class="user-box">
+                <div class="avatar" id="avatarTxt">AB</div>
+                <div>
+                  <div id="accName" style="font-weight:700"></div>
+                  <div class="small" id="accEmail"></div>
+                </div>
+                <div style="margin-left:auto">
+                  <div id="proBadge" style="display:none" class="pro-badge">PRO</div>
+                </div>
+              </div>
+              <div style="margin-top:10px" class="small" id="accAbout"></div>
+
+              <div style="margin-top:12px" class="muted-box">
+                <h4 style="margin:0 0 8px">Upgrade to Pro — $1</h4>
+                <ul style="margin:0 0 8px 18px">
+                  <li>Secret chat with admin</li>
+                  <li>Up to 5 votes per game (instead of 1)</li>
+                </ul>
+                <div style="display:flex;gap:8px">
+                  <button class="btn" id="upgradeBtn" onclick="goToPayment()">Upgrade to Pro</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAYMENT MOCK -->
+      <section id="payment" style="display:none">
+        <h2>Complete Payment</h2>
+        <div class="card" style="padding:12px">
+          <p class="small">This is a demo/mock payment flow. Choosing any option will simulate a successful $1 upgrade and mark your account as pro for when you are logged in.</p>
+          <div class="payment-methods" style="margin-top:12px">
+            <div class="pm" onclick="completePayment('paypal')">PayPal</div>
+            <div class="pm" onclick="completePayment('card')">Credit / Debit Card</div>
+            <div class="pm" onclick="completePayment('crypto')">Crypto</div>
+          </div>
+          <div style="margin-top:12px">
+            <button class="btn" onclick="cancelPayment()">Cancel</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <aside class="sidebar">
+      <div class="card" style="padding:12px;margin-bottom:14px">
+        <h3 style="margin:0 0 8px">Profile</h3>
+        <div id="sidebarProfile">
+          <div class="small">Not logged in</div>
+          <div style="margin-top:8px"><button class="btn outline" onclick="showSection('account')">Create / Log in</button></div>
+        </div>
+      </div>
+
+      <div class="card muted-box">
+        <h4 style="margin:0 0 8px">Secret Chat (Pro)</h4>
+        <div id="secretChatArea" style="min-height:120px;max-height:240px;overflow:auto;padding:6px;background:#fff;border-radius:8px;border:1px solid #f0f0f0"></div>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <input id="chatInput" type="text" placeholder="Message admin...">
+          <button class="btn" onclick="sendChat()">Send</button>
+        </div>
+      </div>
+
+      <div class="card muted-box" style="margin-top:12px">
+        <h4 style="margin:0 0 8px">Admin</h4>
+        <div class="small">Admin actions: <button class="btn outline" onclick="adminLogin()">Open Admin</button></div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<footer>Bob the Stickman Games — demo site • LocalStorage demo • No real money is processed here</footer>
+
+<script>
+// ---------- Utilities & Data ----------
+function getMembers(){return JSON.parse(localStorage.getItem('members')||'[]')}
+function setMembers(m){localStorage.setItem('members',JSON.stringify(m))}
+function getPending(){return JSON.parse(localStorage.getItem('pendingGames')||'[]')}
+function setPending(v){localStorage.setItem('pendingGames',JSON.stringify(v))}
+function getApproved(){return JSON.parse(localStorage.getItem('approvedGames')||'[]')}
+function setApproved(v){localStorage.setItem('approvedGames',JSON.stringify(v))}
+function getChat(){return JSON.parse(localStorage.getItem('secretChat')||'[]')}
+function setChat(v){localStorage.setItem('secretChat',JSON.stringify(v))}
+
+let currentUser = null; // username string
+
+// ---------- Render / Init ----------
+function init(){
+  renderGames();
+  renderSidebar();
+  renderChat();
+}
+
+function showSection(id){['home','submit','account','payment'].forEach(s=>document.getElementById(s).style.display='none');
+  document.getElementById(id).style.display='block';
+  if(id==='submit') checkMemberForSubmit();
+  if(id==='account') renderAccount();
+  if(id==='home') renderGames();
+}
+
+// ---------- Auth / Account ----------
+function handleAuth(){
+  const u = document.getElementById('a_username').value.trim();
+  if(!u){alert('username required');return}
+  const members = getMembers();
+  const found = members.find(m=>m.username===u);
+  if(found){ // login
+    currentUser = found.username;
+    alert('Logged in as ' + currentUser);
+  } else {
+    const email = document.getElementById('a_email').value.trim();
+    const name = document.getElementById('a_name').value.trim();
+    const about = document.getElementById('a_about').value.trim();
+    if(!email||!name){alert('Name and email required for new accounts');return}
+    const newM = {username:u,email,name,about,plays:0,isPro:false,ratings:{}};
+    members.push(newM); setMembers(members);
+    currentUser = u; alert('Account created and logged in');
+  }
+  renderSidebar(); renderAccount(); renderGames();
+}
+
+function logout(){currentUser = null; renderSidebar(); renderAccount(); renderGames(); alert('Logged out');}
+
+function renderAccount(){
+  const members = getMembers();
+  const accInfo = document.getElementById('accountInfo');
+  const accForm = document.getElementById('accountForm');
+  if(!currentUser){ accForm.style.display='block'; accInfo.style.display='none'; return }
+  const me = members.find(m=>m.username===currentUser);
+  accForm.style.display='none'; accInfo.style.display='block';
+  document.getElementById('avatarTxt').innerText = (me.name||me.username).split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
+  document.getElementById('accName').innerText = me.name + ' ('+me.username+')';
+  document.getElementById('accEmail').innerText = me.email;
+  document.getElementById('accAbout').innerText = me.about || '';
+  document.getElementById('proBadge').style.display = me.isPro ? 'inline-block' : 'none';
+  document.getElementById('upgradeBtn').innerText = me.isPro ? 'You are Pro' : 'Upgrade to Pro';
+}
+
+// ---------- Submit flow ----------
+function checkMemberForSubmit(){
+  if(!currentUser){ document.getElementById('submitForm').style.display='none'; document.getElementById('submitNotice').innerText='You must be logged in to submit.'; return }
+  document.getElementById('submitForm').style.display='block'; document.getElementById('submitNotice').innerText='Submitting as ' + currentUser;
+}
+
+function clearSubmit(){document.getElementById('s_title').value='';document.getElementById('s_link').value='';document.getElementById('s_msg').value='';document.getElementById('s_file').value=''}
+
+function submitGame(){
+  if(!currentUser){alert('You must be logged in'); return}
+  const title = document.getElementById('s_title').value.trim();
+  const link = document.getElementById('s_link').value.trim();
+  const msg = document.getElementById('s_msg').value.trim();
+  const file = document.getElementById('s_file').files[0];
+  if(!title||!link||!file){alert('title, link and thumbnail required');return}
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const thumb = e.target.result;
+    const pending = getPending();
+    pending.push({title,link,msg,thumbnail:thumb,submittedBy:currentUser});
+    setPending(pending);
+    alert('Submitted for approval'); clearSubmit();
+  }
+  reader.readAsDataURL(file);
+}
+
+// ---------- Games rendering & play ----------
+function renderGames(){
+  const grid = document.getElementById('gamesGrid'); grid.innerHTML='';
+  const games = getApproved();
+  games.forEach((g,idx)=>{
+    const card = document.createElement('div'); card.className='card';
+    const thumb = document.createElement('div'); thumb.className='thumb';
+    const img = document.createElement('img'); img.src = g.thumbnail; thumb.appendChild(img);
+    const overlay = document.createElement('div'); overlay.className='play-overlay'; overlay.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg><div>Play</div>';
+    overlay.onclick = ()=> playGame(idx);
+    thumb.appendChild(overlay);
+    card.appendChild(thumb);
+
+    const body = document.createElement('div'); body.className='card-body';
+    const h = document.createElement('h3'); h.innerText = g.title; body.appendChild(h);
+    const meta = document.createElement('div'); meta.className='meta'; meta.innerText = 'Submitted by: ' + (g.submittedBy||'unknown'); body.appendChild(meta);
+
+    const actions = document.createElement('div'); actions.className='card-actions';
+    const playBtn = document.createElement('button'); playBtn.className='btn'; playBtn.style.padding='8px 12px'; playBtn.innerText='Play'; playBtn.onclick = ()=> playGame(idx);
+    actions.appendChild(playBtn);
+
+    // rating display & control
+    const ratingWrap = document.createElement('div'); ratingWrap.style.marginLeft='auto'; ratingWrap.className='rating';
+    const avg = calcAvgRating(g);
+    const avgEl = document.createElement('div'); avgEl.className='small'; avgEl.innerText = '★ ' + (avg>0?avg.toFixed(1):'—'); ratingWrap.appendChild(avgEl);
+    actions.appendChild(ratingWrap);
+
+    body.appendChild(actions);
+    card.appendChild(body);
+    grid.appendChild(card);
+  });
+}
+
+function playGame(idx){
+  const games = getApproved();
+  const g = games[idx];
+  // open link in new window — this keeps the site simple and secure
+  window.open(g.link, '_blank');
+  // increment play count for logged-in user
+  if(currentUser){
+    const members = getMembers();
+    const me = members.find(m=>m.username===currentUser);
+    me.plays = (me.plays||0)+1; setMembers(members); renderAccount(); renderSidebar();
+  }
+}
+
+// ---------- Ratings (1 vote for standard, up to 5 for pro) ----------
+function calcAvgRating(g){
+  if(!g.ratings) return 0; const all = [];
+  Object.values(g.ratings).forEach(arr=>{ if(Array.isArray(arr)) arr.forEach(v=>all.push(v)) else if(typeof arr==='number') all.push(arr) })
+  if(all.length===0) return 0; return all.reduce((a,b)=>a+b,0)/all.length;
+}
+
+function voteGame(idx, value){
+  if(!currentUser){alert('Log in to vote');return}
+  const members = getMembers(); const me = members.find(m=>m.username===currentUser);
+  const games = getApproved(); const g = games[idx]; if(!g.ratings) g.ratings = {};
+  const cur = g.ratings[currentUser] || [];
+  const limit = me.isPro?5:1;
+  if(cur.length >= limit){alert('Vote limit reached');return}
+  cur.push(value); g.ratings[currentUser] = cur; setApproved(games); renderGames();
+}
+
+// ---------- Admin (simple local passcode) ----------
+function adminLogin(){
+  const p = prompt('Enter admin passcode:'); if(p!=='stego'){alert('Wrong passcode'); return}
+  // open a simple admin UI using window.prompt/alert for this demo
+  const action = prompt('Admin: type "pending" to review pending, "members" to view members');
+  if(action==='pending') reviewPending(); else if(action==='members') manageMembers();
+}
+
+function reviewPending(){
+  const pending = getPending(); if(pending.length===0){alert('No pending games'); return}
+  let list = pending.map((p,i)=>i+1 + '. ' + p.title + ' (by ' + p.submittedBy +')').join('
 ');
-const choice = parseInt(prompt('Pending games:
+  const choice = parseInt(prompt('Pending games:
 '+list+'
 Enter number to review')) -1; if(isNaN(choice)) return;
-const item = pending[choice]; if(!item) return; const res = prompt('Approve (a) / Reject (r) / Cancel (c)?');
-if(res==='a'){ const approved = getApproved(); approved.push(item); setApproved(approved); pending.splice(choice,1); setPending(pending); alert('Approved') }
-if(res==='r'){ pending.splice(choice,1); setPending(pending); alert('Rejected') }
+  const item = pending[choice]; if(!item) return; const res = prompt('Approve (a) / Reject (r) / Cancel (c)?');
+  if(res==='a'){ const approved = getApproved(); approved.push(item); setApproved(approved); pending.splice(choice,1); setPending(pending); alert('Approved') }
+  if(res==='r'){ pending.splice(choice,1); setPending(pending); alert('Rejected') }
 }
-
 
 function manageMembers(){
-const members = getMembers(); if(members.length===0){alert('No members');return}
-let list = members.map((m,i)=>i+1 + '. ' + m.username + (m.isPro? ' (PRO)':'' + '')).join('
+  const members = getMembers(); if(members.length===0){alert('No members');return}
+  let list = members.map((m,i)=>i+1 + '. ' + m.username + (m.isPro? ' (PRO)':'' + '')).join('
 ');
-alert('Members:
+  alert('Members:
 '+list);
 }
-
 
 // ---------- Payment mock ----------
 function goToPayment(){ if(!currentUser){alert('Log in first'); return} showSection('payment') }
 function completePayment(method){
-// simulate payment success
-const members = getMembers(); const me = members.find(m=>m.username===currentUser);
-if(!me){alert('member not found'); showSection('account'); return}
-me.isPro = true; setMembers(members);
-alert('Payment ('+method+') completed — you are now PRO while logged in');
-showSection('account'); renderAccount(); renderSidebar();
+  // simulate payment success
+  const members = getMembers(); const me = members.find(m=>m.username===currentUser);
+  if(!me){alert('member not found'); showSection('account'); return}
+  me.isPro = true; setMembers(members);
+  alert('Payment ('+method+') completed — you are now PRO while logged in');
+  showSection('account'); renderAccount(); renderSidebar();
 }
 function cancelPayment(){ showSection('account') }
 
-
 // ---------- Sidebar & Chat ----------
 function renderSidebar(){
-const area = document.getElementById('sidebarProfile');
-area.innerHTML = '';
-if(!currentUser){ area.innerHTML = '<div class="small">Not logged in</div><div style="margin-top:8px"><button class="btn outline" onclick="showSection(\'account\')">Create / Log in</button></div>'; document.getElementById('welcomeText').innerText='Welcome — please log in or create an account'; return }
-const members = getMembers(); const me = members.find(m=>m.username===currentUser);
-const html = `<div class="user-box"><div class="avatar">${(me.name||me.username).split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase()}</div><div style="margin-left:8px"><div style="font-weight:700">${me.name}</div><div class="small">@${me.username}</div></div><div style="margin-left:auto">${me.isPro?'<div class="pro-badge">PRO</div>':''}</div></div><div style="margin-top:10px" class="small">Plays: ${me.plays||0}</div>`;
-area.innerHTML = html; document.getElementById('welcomeText').innerText = 'Hello, '+me.name;
+  const area = document.getElementById('sidebarProfile');
+  area.innerHTML = '';
+  if(!currentUser){ area.innerHTML = '<div class="small">Not logged in</div><div style="margin-top:8px"><button class="btn outline" onclick="showSection(\'account\')">Create / Log in</button></div>'; document.getElementById('welcomeText').innerText='Welcome — please log in or create an account'; return }
+  const members = getMembers(); const me = members.find(m=>m.username===currentUser);
+  const html = `<div class="user-box"><div class="avatar">${(me.name||me.username).split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase()}</div><div style="margin-left:8px"><div style="font-weight:700">${me.name}</div><div class="small">@${me.username}</div></div><div style="margin-left:auto">${me.isPro?'<div class="pro-badge">PRO</div>':''}</div></div><div style="margin-top:10px" class="small">Plays: ${me.plays||0}</div>`;
+  area.innerHTML = html; document.getElementById('welcomeText').innerText = 'Hello, '+me.name;
 }
-
 
 function sendChat(){
-const txt = document.getElementById('chatInput').value.trim(); if(!txt){return}
-if(!currentUser){alert('secret chat is for Pro users only'); return}
-const members = getMembers(); const me = members.find(m=>m.username===currentUser);
-if(!me.isPro){alert('secret chat is for Pro users only'); return}
-const chat = getChat(); chat.push({from:currentUser,msg:txt,time:Date.now()}); setChat(chat); document.getElementById('chatInput').value=''; renderChat();
+  const txt = document.getElementById('chatInput').value.trim(); if(!txt){return}
+  if(!currentUser){alert('secret chat is for Pro users only'); return}
+  const members = getMembers(); const me = members.find(m=>m.username===currentUser);
+  if(!me.isPro){alert('secret chat is for Pro users only'); return}
+  const chat = getChat(); chat.push({from:currentUser,msg:txt,time:Date.now()}); setChat(chat); document.getElementById('chatInput').value=''; renderChat();
 }
 function renderChat(){
-const box = document.getElementById('secretChatArea'); box.innerHTML=''; const chat = getChat();
-chat.forEach(c=>{ const d = document.createElement('div'); d.className='small'; d.style.marginBottom='6px'; d.innerHTML = '<strong>'+c.from+':</strong> '+c.msg; box.appendChild(d); });
+  const box = document.getElementById('secretChatArea'); box.innerHTML=''; const chat = getChat();
+  chat.forEach(c=>{ const d = document.createElement('div'); d.className='small'; d.style.marginBottom='6px'; d.innerHTML = '<strong>'+c.from+':</strong> '+c.msg; box.appendChild(d); });
 }
-
 
 // ---------- Init call ----------
 init();
